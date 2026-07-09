@@ -12,6 +12,9 @@ test("puppeteer renders the canonical.cloud landing page", async (t) => {
   const browser = await puppeteer.launch({
     executablePath: chromeExecutablePath(),
     headless: "new",
+    // --no-sandbox: CI runners drive Chrome as root, where launch otherwise
+    // fails ("Running as root without --no-sandbox"); harmless locally.
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
   t.after(() => browser.close());
 
