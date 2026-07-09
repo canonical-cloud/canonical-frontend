@@ -70,14 +70,35 @@ export async function startSite() {
 
   const port = await freePort();
   const url = `http://127.0.0.1:${port}`;
+  // `npm run preview` forks an `astro preview` grandchild. Spawn detached so the
+  // child is a process-group leader, and use `stdio: "ignore"` so the grandchild
+  // never inherits this process's stdout/stderr — otherwise it holds those pipes
+  // open and node --test's per-file subprocess never exits (it hangs to the test
+  // timeout even after the assertions pass).
   const child = spawn(
     "npm",
     ["run", "preview", "--", "--port", String(port), "--host", "127.0.0.1"],
-    { cwd: new URL("..", import.meta.url).pathname, stdio: "inherit" },
+    {
+      cwd: new URL("..", import.meta.url).pathname,
+      stdio: "ignore",
+      detached: true,
+    },
   );
+  child.unref();
 
   const stop = () => {
-    if (!child.killed) child.kill("SIGTERM");
+    if (child.pid === undefined) return;
+    // Kill the whole process group (npm + the astro grandchild). Negative pid
+    // targets the group whose leader is `child` (created by detached: true).
+    try {
+      process.kill(-child.pid, "SIGTERM");
+    } catch {
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // already gone
+      }
+    }
   };
 
   try {
